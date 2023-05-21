@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://www.desmos.com/api/v1.8/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+</head>
+<body>
+  <div id="calculator" style="width: 700px; height: 400px;"></div>
+
+  <script >
+    var elt = document.getElementById('calculator');
+    var calculator = Desmos.GraphingCalculator(elt);
+    // MARKER
+    calculator.setExpression({id:'graph1', latex:'((-1690-2-1910+-1910)t^2-2(-1690--1910)t+-1690, (0-2-2+-15)t^2-2(0--2)t+0)'});
+    calculator.setExpression({id:'graph2', latex:'y=x^3'})
+  </script>
+  <script>
+
+function runWhenAPILoaded(cb) {
+  if (!window.Desmos || !window.Desmos.Calculator) {
+    setTimeout(runWhenAPILoaded, 1, cb);
+    return;
+  }
+  cb();
+}
+
+function setExpressions(latexExpressions) {
+  latexExpressions.forEach(function (item, i) {
+    console.log(item, i)
+  });
+}
+
+runWhenAPILoaded (function () {
+  window.$ = Desmos.$;
+  window.TestBridge = {};
+
+  var script = document.getElementById('main-script');
+  if (script) {
+    eval.call(window, script.textContent);
+  }
+})
+</script>
+</body>
+</html>
