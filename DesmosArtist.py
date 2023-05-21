@@ -2,14 +2,16 @@ import cv2
 import os
 from svg.path import parse_path
 from xml.dom import minidom
-
+import potrace
+import numpy as np
+from PIL import Image
 
 
 class DesmosArtist:
     img_path: str = None
     lower_threshold: int = None
     upper_threshold: int = None
-    svg_paths = []
+
     latex_expressions = []
 
     def __init__(self, img_path: str):
@@ -17,99 +19,71 @@ class DesmosArtist:
         self.lower_threshold = 50
         self.upper_threshold = 150
 
-    def set_lower_threshold(self, lower_threshold: int):
-        self.lower_threshold = lower_threshold
-
-    def set_upper_threshold(self, upper_threshold: int):
-        self.upper_threshold = upper_threshold
-
-    ###########################################################################
-
-    def __make_canny_img(self):
+    def __get_contours(self) -> np.ndarray:
         img = cv2.imread(self.img_path)
-        canny_img = cv2.Canny(img, self.lower_threshold, self.upper_threshold)
-        filename = os.path.basename(self.img_path)
-        cv2.imwrite(f'canny_{filename}', canny_img)
-        return f'canny_{filename}'
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        contours = cv2.Canny(gray, self.lower_threshold, self.upper_threshold)
+        return contours
 
-    def __make_potrace_img(self, canny_img_path: str):
-        os.system(f'potrace {canny_img_path} -b svg')
-        return f'{canny_img_path.split(".")[0]}.svg'
+    def __get_vectorized_img(self, data: np.ndarray) -> potrace.Path:
+        # limit values in data to max of 1
+        for i in range(len(data)):
+            data[i][data[i] > 1] = 1
+            # ValueError: The truth value of an array with more than one element is ambiguous.
+            # Use a.any() or a.all()
+        bmp = potrace.Bitmap(data)
+        path = bmp.trace()
+        return path
 
+    def __get_latex_equations(self, vector_img: potrace.Path) -> list[str]:
+        latex_equations = []
+        # curve contains different segments starting at the same point
+        for curve in vector_img.curves:
+            start = curve.start_point
+            segments = curve.segments
+            for segment in segments:
+                #potrace.CornerSegment
+                # 2 linear segments, 2 linear bezier curves
+                if segment.is_corner:
+                    x0, y0 = start
+                    x1, y1 = segment.c
+                    x2, y2 = segment.end_point
 
-    def __get_svg_paths(self, potrace_img_path: str):
-        svg_paths = []
-        with open(potrace_img_path) as f:
-            content = '\n'.join([line.strip() for line in f.readlines()])
-            svg_dom = minidom.parseString(content)
+                    line1x = f'(1-t){x0}+t{x1}'
+                    line1y = f'(1-t){y0}+t{y1}'
+                    line2x = f'(1-t){x1}+t{x2}'
+                    line2y = f'(1-t){y1}+t{y2}'
 
-            path_strings = [path.getAttribute('d') for path in svg_dom.getElementsByTagName('path')]
+                    latex_equations.extend((line1x, line1y, line2x, line2y))
 
-            for path_string in path_strings:
-                path_data = parse_path(path_string)
-                svg_paths.append(path_data.d())
-        return svg_paths
+                #potrace.BezierSegment
+                # 4 points total, one cubic bezier curve
+                else:
+                    x0, y0 = start
+                    x1, y1 = segment.c1
+                    x2, y2 = segment.c2
+                    x3, y3 = segment.end_point
 
-    def __process_svg_paths(self):
-        operators = 'mlczMLCZ'
-        sub_str_start = None
-        for path in self.svg_paths:
-            for i, char in enumerate(path):
-                if char in operators:
-                    if sub_str_start != None:
-                        sub_str = path[sub_str_start:i - 1]
-                        sub_str = sub_str.replace(',', ' ')
-                        sub_str = sub_str.split(' ')
-                        operator = sub_str.pop(0)
-                        self.__process_svg_path(operator, sub_str)
-                    sub_str_start = i
-            sub_str_start = None
+                    line1x = f'((1-t)^3){x0}+3((1-t)^2)t{x1}+3(1-t)(t^2){x2}+(t^3){x3}'
+                    line1y = f'((1-t)^3){y0}+3((1-t)^2)t{y1}+3(1-t)(t^2){y2}+(t^3){y3}'
 
-    def __process_svg_path(self, operator, path):
-        p = [int(x) for x in path]
-        if operator.lower() == 'c':
-            a = p[0]
-            b = p[1]
-            c = p[2]
-            d = p[3]
-            f = p[4]
-            g = p[5]
+                    latex_equations.extend((line1x, line1y))
 
-            latex = r'((%f-2%f+%f)t^{2}-2(%f-%f)t+%f,(%f-2%f+%f)t^{2}-2(%f-%f)t+%f)' % (a, c, f, a, c, a, b, d, g, b, d, b)
+                start = segment.end_point
+        return latex_equations
 
-            # latex = r'\left(\left(%f-2%f+%f\right)t^{2}-2\left(%f-%f\right)t+%f,\left(%f-2%f+%f\right)t^{2}-2\left(%f-%f\right)t+%f\right)' % (a, c, f, a, c, a, b, d, g, b, d, b)
-
-            # latex = f'(({p[0]}-2{p[2]}+{p[4]})t^2-2({p[0]}-{p[2]})t+{p[0]}, ({p[1]}-2{p[3]}+{p[5]})t^2-2({p[1]}-{p[3]})t+{p[1]})'
-            print(latex)
-            self.latex_expressions.append(latex)
-
-    def edit_html(self):
-        start_line = None
-        with open('desmos_edit.html', 'r') as f:
-            lines = f.readlines()
-
-        for i, line in enumerate(lines):
-            if 'calculator.setExpression' in line:
-                lines.pop(i)
-        for i, line in enumerate(lines):
-            if '// MARKER' in line:
-                start_line = i + 1
-        for j, expression in enumerate(self.latex_expressions):
-            js_str = f"    calculator.setExpression({{id:'graph{j}', latex:'{expression}'}});\n"
-            lines.insert(start_line, js_str)
-
-        with open('desmos_edit.html', 'w') as f:
-            f.writelines(lines)
 
     def draw(self):
-        canny_img_path = self.__make_canny_img()
-        potrace_img_path = self.__make_potrace_img(canny_img_path)
-        self.svg_paths = self.__get_svg_paths(potrace_img_path)
-        for path in self.svg_paths:
-            print(path)
-        print()
-        self.__process_svg_paths()
+        # convert image first with canny edge detection
+        contours: np.ndarray = self.__get_contours()
+        # use potrace to convert image from raster to vector
+        vector_img: potrace.Path = self.__get_vectorized_img(contours)
+        # use vectorized data to get bezier curves for graphing
+        latex_equations = self.__get_latex_equations(vector_img)
+        for e in latex_equations:
+            print(e)
 
-        print('\n', '\n', '\n')
-        print(self.latex_expressions)
-        self.edit_html()
+
+
+
+
