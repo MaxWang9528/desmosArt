@@ -4,59 +4,49 @@
     <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://www.desmos.com/api/v1.8/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
 </head>
 <body>
-  <div id="calculator" style="width: 1500px; height: 1000px;"></div>
+  <div id="calculator" style="width: 1300px; height: 800px;"></div>
 
   <script >
     var elt = document.getElementById('calculator');
     var calculator = Desmos.GraphingCalculator(elt);
-
-    // Load equations from disk
-    window.onload = function(){
-    var iframe = document.createElement('iframe');
-    iframe.id = 'iframe';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    iframe.src = 'latex.txt';
-    setTimeout(function(){
-      var text = document.getElementById('iframe').contentDocument.body.firstChild.innerHTML;
-      const latex_equations = text.split("\n")
-      for (let i = 0; i < latex_equations.length; i++) {
-        let graph = 'graph' + i
-        let latex = latex_equations[i]
-        calculator.setExpression({id:graph, latex:latex})
-      }
-    }, 1000);
-}
     // MARKER
+    jQuery.get('latex.txt', function(data) {
+      document.getElementById("data").innerHTML = data;
+
+      var latex_equations_array = data.split("\n")
+      for (let i = 0; i < latex_equations_array.length; i++) {
+      let graph = "graph" + i
+      let latex = latex_equations_array[i]
+      calculator.setExpression({id: graph, latex: latex})
+      }
+    });
 
   </script>
+  <pre id="data"></pre>
+
+
   <script>
+    function runWhenAPILoaded(cb) {
+      if (!window.Desmos || !window.Desmos.Calculator) {
+        setTimeout(runWhenAPILoaded, 1, cb);
+        return;
+      }
+      cb();
+    }
 
-function runWhenAPILoaded(cb) {
-  if (!window.Desmos || !window.Desmos.Calculator) {
-    setTimeout(runWhenAPILoaded, 1, cb);
-    return;
-  }
-  cb();
-}
+    runWhenAPILoaded (function () {
+      window.$ = Desmos.$;
+      window.TestBridge = {};
 
-function setExpressions(latexExpressions) {
-  latexExpressions.forEach(function (item, i) {
-    console.log(item, i)
-  });
-}
+      var script = document.getElementById('main-script');
+      if (script) {
+        eval.call(window, script.textContent);
+      }
+    })
 
-runWhenAPILoaded (function () {
-  window.$ = Desmos.$;
-  window.TestBridge = {};
-
-  var script = document.getElementById('main-script');
-  if (script) {
-    eval.call(window, script.textContent);
-  }
-})
-</script>
+  </script>
 </body>
 </html>

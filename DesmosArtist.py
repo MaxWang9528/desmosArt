@@ -13,8 +13,8 @@ class DesmosArtist:
 
     def __init__(self, img_path: str):
         self.img_path = img_path
-        self.lower_threshold = 50
-        self.upper_threshold = 150
+        self.lower_threshold = 85
+        self.upper_threshold = 255
 
     def __get_contours(self) -> np.ndarray:
         img = cv2.imread(self.img_path)
