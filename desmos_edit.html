@@ -6,11 +6,29 @@
   <script src="https://www.desmos.com/api/v1.8/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
 </head>
 <body>
-  <div id="calculator" style="width: 700px; height: 400px;"></div>
+  <div id="calculator" style="width: 1500px; height: 1000px;"></div>
 
   <script >
     var elt = document.getElementById('calculator');
     var calculator = Desmos.GraphingCalculator(elt);
+
+    // Load equations from disk
+    window.onload = function(){
+    var iframe = document.createElement('iframe');
+    iframe.id = 'iframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    iframe.src = 'latex.txt';
+    setTimeout(function(){
+      var text = document.getElementById('iframe').contentDocument.body.firstChild.innerHTML;
+      const latex_equations = text.split("\n")
+      for (let i = 0; i < latex_equations.length; i++) {
+        let graph = 'graph' + i
+        let latex = latex_equations[i]
+        calculator.setExpression({id:graph, latex:latex})
+      }
+    }, 1000);
+}
     // MARKER
 
   </script>

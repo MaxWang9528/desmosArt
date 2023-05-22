@@ -2,7 +2,7 @@ from DesmosArtist import DesmosArtist
 
 
 def main():
-    desmos_artist = DesmosArtist('1.bmp')
+    desmos_artist = DesmosArtist('resources/advanced.bmp')
     desmos_artist.draw()
 
 
